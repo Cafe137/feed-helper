@@ -110,7 +110,7 @@ export function App() {
             setWrappedBytesSoc(makeSingleOwnerChunk(wrappedBytesChunk, privateKey, feedIdentifier))
         }
         computeExpectedHash()
-    }, [payload])
+    }, [payload, topic, address])
 
     useEffect(() => {
         async function computeExpectedHash() {
