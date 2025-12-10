@@ -1,0 +1,23 @@
+{
+    "name": "feed-helper",
+    "version": "1.0.0",
+    "scripts": {
+        "start": "vite",
+        "build": "vite build --base=./",
+        "check": "tsc --noEmit"
+    },
+    "license": "ISC",
+    "dependencies": {
+        "@ethersphere/bee-js": "^10.1.1",
+        "cafe-utility": "^33.3.2",
+        "highlight.js": "^11.11.1",
+        "react": "^19.1.1",
+        "react-dom": "^19.1.1"
+    },
+    "devDependencies": {
+        "@types/react": "^19.1.9",
+        "@types/react-dom": "^19.1.7",
+        "typescript": "^5.9.2",
+        "vite": "^7.0.6"
+    }
+}
