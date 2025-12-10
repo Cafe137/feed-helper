@@ -17,11 +17,15 @@ import hljs from 'highlight.js/lib/core'
 import bash from 'highlight.js/lib/languages/bash'
 import 'highlight.js/styles/github-dark.css'
 import { useEffect, useMemo, useState } from 'react'
+import { BytesInstructions } from './BytesInstructions'
+import { BzzInstructions } from './BzzInstructions'
 import { Row2 } from './Row2'
 
 hljs.registerLanguage('bash', bash)
 
 type FeedType = 'v1/legacy' | 'v2/wrapped'
+
+type UploadType = 'bytes' | 'bzz'
 
 interface SOC {
     payload: Uint8Array
@@ -48,6 +52,7 @@ function makeSingleOwnerChunk(chunk: Chunk, signer: PrivateKey, identifier: Iden
 
 export function App() {
     const [feedType, setFeedType] = useState<FeedType>('v1/legacy')
+    const [uploadType, setUploadType] = useState<UploadType>('bytes')
     const [privateKey, setPrivateKey] = useState(new PrivateKey(Strings.randomHex(64)))
     const [topic, setTopic] = useState<string>(Strings.randomHex(64))
     const [batchId, setBatchId] = useState<string>('b961413232c96eedae48947a71c99e454e51c4b5bf93a77c59f958af1229a932')
@@ -55,6 +60,8 @@ export function App() {
     const [payload, setPayload] = useState<string>('Testing at ' + new Date().toISOString())
     const [soc, setSoc] = useState<SOC | null>(null)
     const [wrappedSoc, setWrappedSoc] = useState<SOC | null>(null)
+    const [bytesSoc, setBytesSoc] = useState<SOC | null>(null)
+    const [wrappedBytesSoc, setWrappedBytesSoc] = useState<SOC | null>(null)
 
     const [manifestAddress, setManifestAddress] = useState<string>('')
 
@@ -91,6 +98,16 @@ export function App() {
             setSoc(makeSingleOwnerChunk(chunk, privateKey, feedIdentifier))
             const wrappedChunk = await MerkleTree.root(await mantaray.marshal())
             setWrappedSoc(makeSingleOwnerChunk(wrappedChunk, privateKey, feedIdentifier))
+            const bytesChunk = await MerkleTree.root(new TextEncoder().encode(payload))
+            const bytesSocCac = await MerkleTree.root(
+                Binary.concatBytes(
+                    Binary.numberToUint64(BigInt(Math.floor(Date.now() / 1000)), 'BE'),
+                    bytesChunk.hash()
+                )
+            )
+            setBytesSoc(makeSingleOwnerChunk(bytesSocCac, privateKey, feedIdentifier))
+            const wrappedBytesChunk = await MerkleTree.root(new TextEncoder().encode(payload))
+            setWrappedBytesSoc(makeSingleOwnerChunk(wrappedBytesChunk, privateKey, feedIdentifier))
         }
         computeExpectedHash()
     }, [payload])
@@ -119,6 +136,13 @@ export function App() {
                 <select value={feedType} onChange={e => setFeedType(e.target.value as FeedType)}>
                     <option value="v1/legacy">v1/legacy</option>
                     <option value="v2/wrapped">v2/wrapped</option>
+                </select>
+            </Row2>
+            <Row2 lwidth={140}>
+                <p>Upload Type</p>
+                <select value={uploadType} onChange={e => setUploadType(e.target.value as UploadType)}>
+                    <option value="bytes">bytes</option>
+                    <option value="bzz">bzz</option>
                 </select>
             </Row2>
             <Row2 lwidth={140}>
@@ -153,76 +177,30 @@ export function App() {
                 <p>Payload</p>
                 <textarea value={payload} onChange={e => setPayload(e.target.value)} rows={10} cols={50} />
             </Row2>
-            <pre
-                dangerouslySetInnerHTML={{
-                    __html:
-                        feedType === 'v1/legacy'
-                            ? hljs.highlight(
-                                  `# First upload the data as a txt file
-
-curl -X POST "http://localhost:1633/bzz?name=payload.txt" \\
-    --header "content-type: text/plain" \\
-    --header "swarm-postage-batch-id: ${batchId}" \\
-    --data "${payload}"
-
-# Upload feed SOC
-
-echo "${soc ? Binary.uint8ArrayToHex(soc.payload) : ''}" | \\
-    xxd -r -p | \\
-    curl -X POST http://localhost:1633/soc/${address}/${feedIdentifier.toHex()} \\
-        --header "swarm-postage-batch-id: ${batchId}" \\
-        --url-query sig=${soc ? soc.signature.toHex() : ''} \\
-        --data-binary @-
-
-# Post feed manifest
-
-curl -X POST http://localhost:1633/feeds/${address}/${topic} \\
-    --header "swarm-postage-batch-id: ${batchId}"
-
-# Verify bzz endpoint: should return payload
-
-curl http://localhost:1633/bzz/${manifestAddress}/ | hexdump -Cv
-
-# Verify feed endpoint: should return marshalled mantaray node
-
-curl http://localhost:1633/feeds/${address}/${topic} | hexdump -Cv
-`,
-                                  { language: 'bash' }
-                              ).value
-                            : hljs.highlight(
-                                  `# First upload the data as a txt file
-
-curl -X POST "http://localhost:1633/bzz?name=payload.txt" \\
-    --header "content-type: text/plain" \\
-    --header "swarm-postage-batch-id: ${batchId}" \\
-    --data "${payload}"
-
-# Upload feed SOC
-
-echo "${wrappedSoc ? Binary.uint8ArrayToHex(wrappedSoc.payload) : ''}" | \\
-    xxd -r -p | \\
-    curl -X POST http://localhost:1633/soc/${address}/${feedIdentifier.toHex()} \\
-        --header "swarm-postage-batch-id: ${batchId}" \\
-        --url-query sig=${wrappedSoc ? wrappedSoc.signature.toHex() : ''} \\
-        --data-binary @-
-
-# Post feed manifest
-
-curl -X POST http://localhost:1633/feeds/${address}/${topic} \\
-    --header "swarm-postage-batch-id: ${batchId}"
-
-# Verify bzz endpoint: should return payload
-
-curl http://localhost:1633/bzz/${manifestAddress}/ | hexdump -Cv
-
-# Verify feed endpoint: should return marshalled mantaray node
-
-curl http://localhost:1633/feeds/${address}/${topic} | hexdump -Cv
-                    `,
-                                  { language: 'bash' }
-                              ).value
-                }}
-            ></pre>
+            {uploadType === 'bytes' ? (
+                <BytesInstructions
+                    address={address}
+                    batchId={batchId}
+                    feedIdentifier={feedIdentifier}
+                    feedType={feedType}
+                    payload={payload}
+                    soc={bytesSoc}
+                    topic={topic}
+                    wrappedSoc={wrappedBytesSoc}
+                />
+            ) : (
+                <BzzInstructions
+                    address={address}
+                    batchId={batchId}
+                    feedIdentifier={feedIdentifier}
+                    feedType={feedType}
+                    manifestAddress={manifestAddress}
+                    payload={payload}
+                    soc={soc}
+                    topic={topic}
+                    wrappedSoc={wrappedSoc}
+                />
+            )}
         </div>
     )
 }
