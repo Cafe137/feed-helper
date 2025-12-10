@@ -59,7 +59,7 @@ echo "${wrappedSoc ? Binary.uint8ArrayToHex(wrappedSoc.payload) : ''}" | \\
         --url-query sig=${wrappedSoc ? wrappedSoc.signature.toHex() : ''} \\
         --data-binary @-
 
-# Verify feed endpoint: should return marshalled mantaray node
+# Verify feed endpoint: should return payload verbatim
 
 curl http://localhost:1633/feeds/${address}/${topic} | hexdump -Cv
                     `,
